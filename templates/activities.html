@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EcoTrack Activities</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg app-nav">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
+        <span class="brand-icon" aria-hidden="true">✦</span>
+        EcoTrack
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="{{ url_for('activities') }}">Activities</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container app-main">
+    <section class="dashboard-hero">
+      <div><span class="page-kicker">ECOTRACK / RECORDS</span><h1 class="page-title">Manage Your Activities</h1><p class="page-subtitle mb-0">Track and manage your carbon footprint activities.</p></div>
+      <a class="btn btn-outline-eco" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+    </section>
+
+    {% if lookup_error %}
+    <div class="alert alert-danger">{{ lookup_error }}</div>
+    {% endif %}
+
+    <div id="formAlert" class="alert d-none" role="alert"></div>
+
+    <section class="panel mb-4">
+      <h2 id="formTitle">Add Activity</h2>
+      <p class="panel-help">Choose an activity type, then fill only the fields that belong to that type. Emissions are calculated by the existing Flask CRUD routes.</p>
+
+      <form id="activityForm" novalidate>
+        <input type="hidden" id="recordId">
+        <input type="hidden" id="categoryId">
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="userId">User</label>
+            <select class="form-select" id="userId" required>
+              <option value="">Select a user</option>
+              {% for user in users %}
+              <option value="{{ user.user_id }}">{{ user.name }} (ID {{ user.user_id }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="activityType">Activity type</label>
+            <select class="form-select" id="activityType" required>
+              <option value="">Select an activity type</option>
+              <option value="Transportation">Transportation</option>
+              <option value="Food">Food Consumption</option>
+              <option value="Electricity">Electricity Usage</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="recordDate">Date</label>
+            <input class="form-control" type="date" id="recordDate" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="factorId">Emission factor</label>
+            <select class="form-select" id="factorId" required>
+              <option value="">Select a factor</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="notes">Notes (optional)</label>
+            <input class="form-control" type="text" id="notes" maxlength="500">
+          </div>
+        </div>
+
+        <div id="transportFields" class="activity-fields mt-3 d-none">
+          <h3 class="field-group-title">Transportation details</h3>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label" for="mode">Mode</label>
+              <input class="form-control" type="text" id="mode" placeholder="Private car, Metro, Bus">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="distanceKm">Distance (km)</label>
+              <input class="form-control" type="number" id="distanceKm" min="0.01" step="0.01">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="vehicleType">Vehicle type (optional)</label>
+              <input class="form-control" type="text" id="vehicleType">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="fuelType">Fuel type (optional)</label>
+              <input class="form-control" type="text" id="fuelType">
+            </div>
+          </div>
+        </div>
+
+        <div id="foodFields" class="activity-fields mt-3 d-none">
+          <h3 class="field-group-title">Food consumption details</h3>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" for="foodType">Food type</label>
+              <input class="form-control" type="text" id="foodType" placeholder="Milled rice, Chicken">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="quantity">Quantity</label>
+              <input class="form-control" type="number" id="quantity" min="0.01" step="0.01">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="unit">Unit</label>
+              <input class="form-control" type="text" id="unit" placeholder="kg or L">
+            </div>
+          </div>
+        </div>
+
+        <div id="electricityFields" class="activity-fields mt-3 d-none">
+          <h3 class="field-group-title">Electricity usage details</h3>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" for="kwh">Electricity used (kWh)</label>
+              <input class="form-control" type="number" id="kwh" min="0.01" step="0.01">
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-eco" id="submitButton">Add activity</button>
+          <button type="button" class="btn btn-eco-secondary d-none" id="cancelEditButton">Cancel edit</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>View Activities</h2>
+      <p class="panel-help">All carbon records from MySQL, including joined activity details.</p>
+      <div class="table-responsive">
+        <table class="table eco-table mb-0">
+          <thead>
+            <tr>
+              <th>Record ID</th>
+              <th>User</th>
+              <th>Activity type</th>
+              <th>Activity details</th>
+              <th>Emissions (kg CO2e)</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="recordsTableBody">
+            <tr>
+              <td colspan="7">Loading records...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const categories = {{ categories | tojson }};
+    const factors = {{ factors | tojson }};
+    const form = document.getElementById("activityForm");
+    const formAlert = document.getElementById("formAlert");
+    const formTitle = document.getElementById("formTitle");
+    const submitButton = document.getElementById("submitButton");
+    const cancelEditButton = document.getElementById("cancelEditButton");
+    const userIdInput = document.getElementById("userId");
+    const activityTypeInput = document.getElementById("activityType");
+    const categoryIdInput = document.getElementById("categoryId");
+    const recordDateInput = document.getElementById("recordDate");
+    const factorIdInput = document.getElementById("factorId");
+    const notesInput = document.getElementById("notes");
+    const recordIdInput = document.getElementById("recordId");
+    const transportFields = document.getElementById("transportFields");
+    const foodFields = document.getElementById("foodFields");
+    const electricityFields = document.getElementById("electricityFields");
+
+    function showMessage(text, isError) {
+      formAlert.textContent = text;
+      formAlert.classList.remove("d-none", "alert-success", "alert-danger");
+      formAlert.classList.add(isError ? "alert-danger" : "alert-success");
+    }
+
+    function categoryIdForName(name) {
+      const match = categories.find((item) => item.category_name === name);
+      return match ? String(match.category_id) : "";
+    }
+
+    function fillFactorOptions(categoryId, selectedFactorId) {
+      factorIdInput.innerHTML = '<option value="">Select a factor</option>';
+      factors
+        .filter((item) => String(item.category_id) === String(categoryId))
+        .forEach((item) => {
+          const option = document.createElement("option");
+          option.value = item.factor_id;
+          option.textContent = item.activity_name + " (" + item.unit + ")";
+          if (String(item.factor_id) === String(selectedFactorId)) {
+            option.selected = true;
+          }
+          factorIdInput.appendChild(option);
+        });
+    }
+
+    function setRequired(ids, isRequired) {
+      ids.forEach((id) => {
+        const field = document.getElementById(id);
+        if (isRequired) {
+          field.setAttribute("required", "required");
+        } else {
+          field.removeAttribute("required");
+        }
+      });
+    }
+
+    function showActivityFields(activityType) {
+      transportFields.classList.add("d-none");
+      foodFields.classList.add("d-none");
+      electricityFields.classList.add("d-none");
+      setRequired(["mode", "distanceKm"], false);
+      setRequired(["foodType", "quantity", "unit"], false);
+      setRequired(["kwh"], false);
+
+      if (activityType === "Transportation") {
+        transportFields.classList.remove("d-none");
+        setRequired(["mode", "distanceKm"], true);
+      } else if (activityType === "Food") {
+        foodFields.classList.remove("d-none");
+        setRequired(["foodType", "quantity", "unit"], true);
+      } else if (activityType === "Electricity") {
+        electricityFields.classList.remove("d-none");
+        setRequired(["kwh"], true);
+      }
+    }
+
+    function resetForm() {
+      form.reset();
+      recordIdInput.value = "";
+      categoryIdInput.value = "";
+      activityTypeInput.disabled = false;
+      fillFactorOptions("", "");
+      showActivityFields("");
+      formTitle.textContent = "Add Activity";
+      submitButton.textContent = "Add activity";
+      cancelEditButton.classList.add("d-none");
+    }
+
+    function activityDetails(record) {
+      const activity = record.activity;
+      if (!activity) {
+        return "—";
+      }
+      if (record.category_name === "Transportation") {
+        const parts = [activity.mode, activity.distance_km + " km"];
+        if (activity.vehicle_type) {
+          parts.push(activity.vehicle_type);
+        }
+        if (activity.fuel_type) {
+          parts.push(activity.fuel_type);
+        }
+        if (activity.activity_name) {
+          parts.push(activity.activity_name);
+        }
+        return parts.join(" · ");
+      }
+      if (record.category_name === "Food") {
+        const parts = [activity.food_type, activity.quantity + " " + activity.unit];
+        if (activity.activity_name) {
+          parts.push(activity.activity_name);
+        }
+        return parts.join(" · ");
+      }
+      if (record.category_name === "Electricity") {
+        const parts = [activity.kwh + " kWh"];
+        if (activity.activity_name) {
+          parts.push(activity.activity_name);
+        }
+        return parts.join(" · ");
+      }
+      return "—";
+    }
+
+    function activityTypeLabel(name) {
+      if (name === "Food") {
+        return "Food Consumption";
+      }
+      if (name === "Electricity") {
+        return "Electricity Usage";
+      }
+      return name;
+    }
+
+    async function loadRecords() {
+      const body = document.getElementById("recordsTableBody");
+      try {
+        const response = await fetch("/records");
+        const data = await response.json();
+        if (!response.ok) {
+          body.innerHTML = '<tr><td colspan="7">' + (data.error || "Could not load records.") + "</td></tr>";
+          return;
+        }
+        const records = data.records || [];
+        if (!records.length) {
+          body.innerHTML = '<tr><td colspan="7">No carbon activity records to display.</td></tr>';
+          return;
+        }
+        body.innerHTML = records.map((record) => {
+          const details = activityDetails(record).replace(/</g, "&lt;");
+          return (
+            "<tr>" +
+            "<td>" + record.record_id + "</td>" +
+            "<td>" + record.user_name + "</td>" +
+            "<td>" + activityTypeLabel(record.category_name) + "</td>" +
+            "<td>" + details + "</td>" +
+            "<td>" + record.carbon_footprint + "</td>" +
+            "<td>" + record.record_date + "</td>" +
+            "<td>" +
+            '<button type="button" class="btn btn-sm btn-eco me-1" data-edit="' + record.record_id + '">Edit</button>' +
+            '<button type="button" class="btn btn-sm btn-eco-danger" data-delete="' + record.record_id + '">Delete</button>' +
+            "</td>" +
+            "</tr>"
+          );
+        }).join("");
+      } catch (error) {
+        body.innerHTML = '<tr><td colspan="7">Could not load records.</td></tr>';
+      }
+    }
+
+    function buildPayload() {
+      const activityType = activityTypeInput.value;
+      const payload = {
+        user_id: Number(userIdInput.value),
+        category_id: Number(categoryIdInput.value),
+        record_date: recordDateInput.value,
+        factor_id: Number(factorIdInput.value),
+        notes: notesInput.value.trim() === "" ? null : notesInput.value.trim()
+      };
+
+      if (activityType === "Transportation") {
+        payload.mode = document.getElementById("mode").value.trim();
+        payload.distance_km = Number(document.getElementById("distanceKm").value);
+        payload.vehicle_type = document.getElementById("vehicleType").value.trim() || null;
+        payload.fuel_type = document.getElementById("fuelType").value.trim() || null;
+      } else if (activityType === "Food") {
+        payload.food_type = document.getElementById("foodType").value.trim();
+        payload.quantity = Number(document.getElementById("quantity").value);
+        payload.unit = document.getElementById("unit").value.trim();
+      } else if (activityType === "Electricity") {
+        payload.kwh = Number(document.getElementById("kwh").value);
+      }
+      return payload;
+    }
+
+    activityTypeInput.addEventListener("change", function () {
+      const categoryId = categoryIdForName(activityTypeInput.value);
+      categoryIdInput.value = categoryId;
+      fillFactorOptions(categoryId, "");
+      showActivityFields(activityTypeInput.value);
+    });
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      if (!form.reportValidity()) {
+        return;
+      }
+
+      const recordId = recordIdInput.value;
+      const payload = buildPayload();
+      const url = recordId ? "/records/" + recordId : "/records";
+      const method = recordId ? "PUT" : "POST";
+
+      try {
+        const response = await fetch(url, {
+          method: method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          showMessage(data.error || "The request could not be saved.", true);
+          return;
+        }
+        showMessage(
+          recordId
+            ? "Activity " + recordId + " was updated. Carbon footprint is now " + data.carbon_footprint + " kg CO2e."
+            : "Activity " + data.record_id + " was added. Carbon footprint is " + data.carbon_footprint + " kg CO2e.",
+          false
+        );
+        resetForm();
+        await loadRecords();
+      } catch (error) {
+        showMessage("Could not reach the EcoTrack server.", true);
+      }
+    });
+
+    cancelEditButton.addEventListener("click", function () {
+      resetForm();
+      showMessage("Edit cancelled. You can add a new activity.", false);
+    });
+
+    document.getElementById("recordsTableBody").addEventListener("click", async function (event) {
+      const editId = event.target.getAttribute("data-edit");
+      const deleteId = event.target.getAttribute("data-delete");
+
+      if (editId) {
+        try {
+          const response = await fetch("/records/" + editId);
+          const record = await response.json();
+          if (!response.ok) {
+            showMessage(record.error || "Could not load that record.", true);
+            return;
+          }
+
+          recordIdInput.value = record.record_id;
+          userIdInput.value = record.user_id;
+          activityTypeInput.value = record.category_name;
+          activityTypeInput.disabled = true;
+          categoryIdInput.value = record.category_id;
+          recordDateInput.value = record.record_date;
+          notesInput.value = record.notes || "";
+          fillFactorOptions(record.category_id, record.activity ? record.activity.factor_id : "");
+          showActivityFields(record.category_name);
+
+          const activity = record.activity || {};
+          if (record.category_name === "Transportation") {
+            document.getElementById("mode").value = activity.mode || "";
+            document.getElementById("distanceKm").value = activity.distance_km || "";
+            document.getElementById("vehicleType").value = activity.vehicle_type || "";
+            document.getElementById("fuelType").value = activity.fuel_type || "";
+          } else if (record.category_name === "Food") {
+            document.getElementById("foodType").value = activity.food_type || "";
+            document.getElementById("quantity").value = activity.quantity || "";
+            document.getElementById("unit").value = activity.unit || "";
+          } else if (record.category_name === "Electricity") {
+            document.getElementById("kwh").value = activity.kwh || "";
+          }
+
+          formTitle.textContent = "Edit Activity #" + record.record_id;
+          submitButton.textContent = "Save changes";
+          cancelEditButton.classList.remove("d-none");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } catch (error) {
+          showMessage("Could not load that record for editing.", true);
+        }
+      }
+
+      if (deleteId) {
+        const confirmed = window.confirm("Delete carbon record " + deleteId + "? This cannot be undone.");
+        if (!confirmed) {
+          return;
+        }
+        try {
+          const response = await fetch("/records/" + deleteId, { method: "DELETE" });
+          const data = await response.json();
+          if (!response.ok) {
+            showMessage(data.error || "Could not delete that record.", true);
+            return;
+          }
+          showMessage(data.message || ("Carbon record " + deleteId + " was deleted."), false);
+          if (recordIdInput.value === deleteId) {
+            resetForm();
+          }
+          await loadRecords();
+        } catch (error) {
+          showMessage("Could not delete that record.", true);
+        }
+      }
+    });
+
+    fillFactorOptions("", "");
+    loadRecords();
+  </script>
+</body>
+</html>
